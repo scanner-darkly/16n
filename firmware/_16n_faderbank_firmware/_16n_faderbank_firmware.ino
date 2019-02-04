@@ -24,6 +24,8 @@
 
 #include "TxHelper.h"
 
+const int maxCCCount = 128;
+
 MIDI_CREATE_DEFAULT_INSTANCE();
 
 // loop helpers
@@ -35,6 +37,8 @@ int q, shiftyTemp, notShiftyTemp;
 // the storage of the values; current is in the main loop; last value is for midi output
 int volatile currentValue[channelCount];
 int lastMidiValue[channelCount];
+
+int lastCCValue[channelCount][maxCCCount];
 
 #ifdef MASTER
 
@@ -70,6 +74,8 @@ int midiInterval = 5000; // 5ms
 // helper values for i2c reading and future expansion
 int activeInput = 0;
 int activeMode = 0;
+int activeChannel = 0;
+int activeCC = 0;
 
 /*
  * The function that sets up the application
@@ -143,6 +149,8 @@ void setup()
 
   // turn on the MIDI party
   MIDI.begin();
+  MIDI.setHandleControlChange(midiHandleControlChange);
+  usbMIDI.setHandleControlChange(midiHandleControlChange);
   midiWriteTimer.begin(writeMidi, midiInterval);
   midiReadTimer.begin(readMidi, midiInterval);
 
@@ -189,6 +197,12 @@ void loop()
     currentValue[i] = temp;
     interrupts();
   }
+}
+
+void midiHandleControlChange(byte channel, byte control, byte value)
+{
+    if (channel >= channelCount || control >= maxCCCount) return;
+    lastCCValue[channel][control] = value;
 }
 
 void readMidi()
@@ -323,7 +337,7 @@ void i2cWrite(size_t len)
   else
   {
     // act on the command
-    actOnCommand(response.Command, response.Output, response.Value);
+    actOnCommand(response.Command, response.Output, response.Value, response.Raw);
   }
 }
 
@@ -352,6 +366,10 @@ void i2cReadRequest()
     shiftReady = (uint16_t)currentValue[activeInput];
     interrupts();
     break;
+  case ccMode:
+    if (activeChannel < channelCount && activeCC < maxCCCount)
+        shiftReady = lastCCValue[activeChannel][activeCC];
+    break;
   default:
     noInterrupts();
     shiftReady = (uint16_t)currentValue[activeInput];
@@ -376,6 +394,28 @@ void i2cReadRequest()
 /*
  * Future function if we add more i2c capabilities beyond reading values.
  */
-void actOnCommand(byte cmd, byte out, int value) {}
+void actOnCommand(byte cmd, byte out, int value, byte *raw)
+{
+    if (cmd == getMidiCCCommand)
+    {
+        activeMode = ccMode;
+        activeChannel = out;
+        activeCC = raw[1];
+    }
+    else if (cmd == sendMidiNoteOn)
+    {
+        if (out > 0 && out < 17)
+            MIDI.sendNoteOn(out, raw[0], raw[1]);
+        else if (out > 16 && out < 33)
+            usbMIDI.sendNoteOn(out - 16, raw[0], raw[1]);
+    }
+    else if (cmd == sendMidiNoteOff)
+    {
+        if (out > 0 && out < 17)
+            MIDI.sendNoteOff(out, raw[0], 0);
+        else if (out > 16 && out < 33)
+            usbMIDI.sendNoteOff(out - 16, raw[0], 0);
+    }
+}
 
 #endif

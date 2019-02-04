@@ -72,6 +72,9 @@ TxResponse TxHelper::Parse(size_t len)
   response.Command = buffer[0];
   response.Output = buffer[1];
   response.Value = (int)temp2;
+  response.Raw[0] = buffer[1];
+  response.Raw[1] = buffer[2];
+  response.Raw[2] = buffer[3];
 
   // Serial.printf("temp: %d; temp2: %d; helper: %d\n", temp, temp2, response.Value);
 

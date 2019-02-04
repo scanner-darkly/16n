@@ -36,6 +36,10 @@
 
 // I2C Address for Faderbank. 0x34 unless you ABSOLUTELY know what
 #define I2C_ADDRESS 0x34
+const byte getMidiCCCommand = 0;
+const byte sendMidiNoteOn = 1;
+const byte sendMidiNoteOff = 2;
+const int ccMode = 3; // should be last mode used by TxHelper + 1
 
 #ifdef DEV
 
