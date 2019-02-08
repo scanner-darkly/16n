@@ -76,6 +76,11 @@ int activeInput = 0;
 int activeMode = 0;
 int activeChannel = 0;
 int activeCC = 0;
+int noteChannel = 0;
+int note = 0;
+int noteVelocity = 0;
+int sendNote = 0;
+
 
 /*
  * The function that sets up the application
@@ -217,6 +222,37 @@ void readMidi()
  */
 void writeMidi()
 {
+  if (sendNote == noteOnMode)
+  {
+    if (noteChannel > 16)
+    {
+#ifdef DEBUG
+      Serial.printf("Sending USB MIDI note on channel: %d note %d vel: %d\n", noteChannel - 16, note, noteVelocity);
+#endif
+      usbMIDI.sendNoteOn(note, noteVelocity, noteChannel - 16);
+    } else {
+#ifdef DEBUG
+      Serial.printf("Sending MIDI note on channel: %d note %d vel: %d\n", noteChannel, note, noteVelocity);
+#endif
+      MIDI.sendNoteOn(note, noteVelocity, noteChannel);
+    }
+  }
+  else if (sendNote == noteOffMode)
+  {
+    if (noteChannel > 16)
+    {
+#ifdef DEBUG
+      Serial.printf("Sending USB MIDI note off channel: %d note %d\n", noteChannel - 16, note);
+#endif
+      usbMIDI.sendNoteOff(note, 0, noteChannel - 16);
+    } else {
+#ifdef DEBUG
+      Serial.printf("Sending MIDI note channel: %d note %d\n", noteChannel, note);
+#endif
+      MIDI.sendNoteOff(note, 0, noteChannel);
+    }
+  }
+  sendNote = 0;
 
   // write loop using the q counter (
   // (can't use i or temp cuz this might interrupt the reads)
@@ -391,31 +427,41 @@ void i2cReadRequest()
 #endif
 }
 
-/*
- * Future function if we add more i2c capabilities beyond reading values.
- */
 void actOnCommand(byte cmd, byte out, int value, byte *raw)
 {
-    if (cmd == getMidiCCCommand)
-    {
-        activeMode = ccMode;
-        activeChannel = out;
-        activeCC = raw[1];
+  Serial.println("actOnCommand");
+  if (cmd == getMidiCCCommand)
+  {
+#ifdef DEBUG
+    Serial.printf("Received FB.CC channel: %d CC: %d\n", out, raw[1]);
+#endif
+    activeMode = ccMode;
+    activeChannel = out;
+    activeCC = raw[1];
+  }
+  else if (cmd == sendMidiNoteOn)
+  {
+#ifdef DEBUG
+    Serial.printf("Received FB.ON channel: %d note: %d vel: %d\n", out, raw[1], raw[2]);
+#endif
+    if (out > 0 && out < 33) {
+      noteChannel = out;
+      sendNote = noteOnMode;
     }
-    else if (cmd == sendMidiNoteOn)
-    {
-        if (out > 0 && out < 17)
-            MIDI.sendNoteOn(out, raw[0], raw[1]);
-        else if (out > 16 && out < 33)
-            usbMIDI.sendNoteOn(out - 16, raw[0], raw[1]);
-    }
-    else if (cmd == sendMidiNoteOff)
-    {
-        if (out > 0 && out < 17)
-            MIDI.sendNoteOff(out, raw[0], 0);
-        else if (out > 16 && out < 33)
-            usbMIDI.sendNoteOff(out - 16, raw[0], 0);
-    }
+    note = raw[1];
+    noteVelocity = raw[2];
+  }
+  else if (cmd == sendMidiNoteOff)
+  {
+#ifdef DEBUG
+    Serial.printf("Received FB.OFF channel: %d note: %d\n", out, raw[1]);
+#endif
+    if (out > 0 && out < 33) {
+      noteChannel = out;
+      sendNote = noteOffMode;
+   }
+   note = raw[1];
+  }
 }
 
 #endif

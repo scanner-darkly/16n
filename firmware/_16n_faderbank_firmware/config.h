@@ -40,6 +40,8 @@ const byte getMidiCCCommand = 0;
 const byte sendMidiNoteOn = 1;
 const byte sendMidiNoteOff = 2;
 const int ccMode = 3; // should be last mode used by TxHelper + 1
+const int noteOnMode = 1;
+const int noteOffMode = 2;
 
 #ifdef DEV
 
