@@ -17,6 +17,7 @@
  */
 
 #include "config.h"
+#include "sysex.h"
 #include <i2c_t3.h>
 #include <MIDI.h>
 #include <ResponsiveAnalogRead.h>
@@ -221,7 +222,9 @@ void writeMidi()
       // send the message over USB and physical MIDI
       usbMIDI.sendControlChange(usb_ccs[q], shiftyTemp, usb_channels[q]);
       MIDI.sendControlChange(trs_ccs[q], shiftyTemp, trs_channels[q]);
-
+#ifdef TRANSMIT_SYSEX
+      sendSysEx(q, shiftyTemp);
+#endif
       // store the shifted value for future comparison
       lastMidiValue[q] = shiftyTemp;
 
@@ -260,6 +263,14 @@ void writeMidi()
 
 #endif
   }
+}
+
+void sendSysEx(int fader, int value)
+{
+  int messageLength = getSysExMessageLength(sysex_channels[fader], fader, value);
+  uint8_t* message = buildSysExMessage(sysex_channels[fader], fader, value);
+  usbMIDI.sendSysEx(messageLength, message, true);
+  MIDI.sendSysEx(messageLength, message, true);
 }
 
 #ifdef MASTER

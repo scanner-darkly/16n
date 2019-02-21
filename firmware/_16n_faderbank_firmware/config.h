@@ -22,6 +22,9 @@
 // turn on power LED
 // #define LED 1
 
+// enables and selects sysex to send (see sysex.h for available choices)
+// #define TRANSMIT_SYSEX ROLAND_MKS50
+
 // MASTER MODE allows you to broadcast values from the 16n
 // this supports up to 4 TXo modules and/or up to 4 Ansible devices and/or 1 ER-301
 // uncomment this #define and compile the firmware
