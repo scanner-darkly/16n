@@ -30,6 +30,13 @@
 //
 //#define MASTER 1
 
+// uncomment to convert MIDI notes to I2C
+// MASTER MODE must be enabled
+// for Just Friends set POLYPHONY to 6
+// #define JFMIDI
+// #define ER301MIDI
+#define POLYPHONY 8
+
 // minimum and maximum values for faders (to deal with tolerances)
 #define MINFADER 15
 #define MAXFADER 8135

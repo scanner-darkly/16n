@@ -46,14 +46,20 @@ int lastCCValue[channelCount][maxCCCount];
 int lastValue[channelCount];
 
 // the i2c message buffer we are sending
-uint8_t messageBuffer[4];
+uint8_t messageBuffer[6];
 
 // temporary values
 uint16_t valueTemp;
 uint8_t device = 0;
 uint8_t port = 0;
+uint8_t jfMode = 0;
 
 #endif
+
+// MIDI notes
+int midiPitch[POLYPHONY];
+int midiVelocity[POLYPHONY];
+int midiState[POLYPHONY];
 
 // the thing that smartly smooths the input
 ResponsiveAnalogRead *analog[channelCount];
@@ -155,7 +161,11 @@ void setup()
   // turn on the MIDI party
   MIDI.begin();
   MIDI.setHandleControlChange(midiHandleControlChange);
+  MIDI.setHandleNoteOn(midiHandleNoteOn);
+  MIDI.setHandleNoteOff(midiHandleNoteOff);
   usbMIDI.setHandleControlChange(midiHandleControlChange);
+  usbMIDI.setHandleNoteOn(midiHandleNoteOn);
+  usbMIDI.setHandleNoteOff(midiHandleNoteOff);
   midiWriteTimer.begin(writeMidi, midiInterval);
   midiReadTimer.begin(readMidi, midiInterval);
 
@@ -163,6 +173,8 @@ void setup()
   pinMode(13, OUTPUT);
   digitalWrite(13, HIGH);
 #endif
+
+  for (int i = 0; i < POLYPHONY; i++) midiState[i] = 0;
 }
 
 /*
@@ -202,12 +214,91 @@ void loop()
     currentValue[i] = temp;
     interrupts();
   }
+
+#ifdef MASTER
+  for (int i = 0; i < POLYPHONY; i++) {
+    if (midiState[i] == -1)
+    {
+#ifdef JFMIDI
+      sendJFNote(i, midiPitch[i], midiVelocity[i]);
+#endif
+#ifdef ER301MIDI
+      sendER301Note(i, midiPitch[i], midiVelocity[i]);
+#endif
+      midiState[i] = midiVelocity[i] ? 1 : 0;
+    }
+  }
+#endif
 }
 
 void midiHandleControlChange(byte channel, byte control, byte value)
 {
     if (channel >= channelCount || control >= maxCCCount) return;
     lastCCValue[channel][control] = value;
+}
+
+void midiHandleNoteOn(uint8_t channel, uint8_t note, uint8_t velocity)
+{
+#ifdef DEBUG
+  Serial.printf("Received MIDI note on channel: %d note: %d vel: %d\n", channel, note, velocity);
+#endif
+  addNote(channel, note, velocity);
+}
+
+void midiHandleNoteOff(uint8_t channel, uint8_t note, uint8_t velocity)
+{
+#ifdef DEBUG
+  Serial.printf("Received MIDI note off channel: %d note: %d vel: %d\n", channel, note, velocity);
+#endif
+  removeNote(channel, note, velocity);
+}
+
+void addNote(uint8_t channel, uint8_t note, uint8_t velocity)
+{
+  int index = -1;
+  int oldest = -1;
+  for (int i = 0; i < POLYPHONY; i++) {
+    if (midiState[i] == 0)
+    {
+      midiPitch[i] = note;
+      midiVelocity[i] = velocity;
+      midiState[i] = -1;
+      index = -1;
+#ifdef DEBUG
+      Serial.printf("Note added to voice  %d\n", i);
+#endif
+      break;
+    }
+    if (midiState[i] > oldest)
+    {
+      index = i;
+      oldest = midiState[i];
+    }
+  }
+  if (index != -1)
+  {
+    for (int i = 0; i < POLYPHONY; i++) {
+      if (midiState[i] > 0) midiState[i]++;
+    }
+    midiPitch[index] = note;
+    midiVelocity[index] = velocity;
+    midiState[index] = -1;
+#ifdef DEBUG
+    Serial.printf("Note added to voice  %d\n", index);
+#endif
+  }
+}
+
+void removeNote(uint8_t channel, uint8_t note, uint8_t velocity)
+{
+  for (int i = 0; i < POLYPHONY; i++) {
+    if (midiPitch[i] == note)
+    {
+      midiVelocity[i] = 0;
+      midiState[i] = -1;
+      break;
+    }
+  }
 }
 
 void readMidi()
@@ -336,6 +427,57 @@ void sendi2c(uint8_t model, uint8_t deviceIndex, uint8_t cmd, uint8_t devicePort
   messageBuffer[1] = (uint8_t)devicePort;
   Wire.write(messageBuffer, 4);
   Wire.endTransmission();
+#endif
+}
+
+void sendJFNote(uint8_t voice, int pitch, int velocity)
+{
+  if (jfMode == 0)
+  {
+    messageBuffer[0] = 6;
+    messageBuffer[1] = 1;
+#ifdef V125
+    Wire1.beginTransmission(0x70);
+    Wire1.write(messageBuffer, 2);
+    Wire1.endTransmission();
+#else
+    Wire.beginTransmission(0x70);
+    Wire.write(messageBuffer, 2);
+    Wire.endTransmission();
+#endif
+    jfMode = 1;
+  }
+   
+  messageBuffer[0] = 0x8;
+  messageBuffer[1] = voice;
+  pitch -= 60;
+  int pitchV = pitch * 136 + pitch / 2;
+  messageBuffer[2] = pitchV >> 8;
+  messageBuffer[3] = pitchV & 0xff;
+  if (velocity) velocity = 8000;
+  messageBuffer[4] = velocity >> 8;
+  messageBuffer[5] = velocity & 0xff;
+
+#ifdef V125
+  Wire1.beginTransmission(0x70);
+  Wire1.write(messageBuffer, 6);
+  Wire1.endTransmission();
+#else
+  Wire.beginTransmission(0x70);
+  Wire.write(messageBuffer, 6);
+  Wire.endTransmission();
+#endif
+}
+
+void sendER301Note(uint8_t voice, int pitch, int velocity)
+{
+  pitch -= 30;
+  int pitchV = pitch * 136 + pitch / 2;
+  sendi2c(0x31, 0, 0x11, voice + 16, pitchV);
+  sendi2c(0x31, 0, 0x11, voice + 16 + POLYPHONY, velocity);
+  sendi2c(0x31, 0, 0, voice + 16, velocity == 0 ? 0 : 1);
+#ifdef DEBUG
+  Serial.printf("Sent MIDI note to ER-301, voice: %d note: %d vel: %d\n", voice, pitch, velocity);
 #endif
 }
 
