@@ -471,7 +471,7 @@ void sendJFNote(uint8_t voice, int pitch, int velocity)
 
 void sendER301Note(uint8_t voice, int pitch, int velocity)
 {
-  pitch -= 30;
+  pitch -= 60;
   int pitchV = pitch * 136 + pitch / 2;
   sendi2c(0x31, 0, 0x11, voice + 16, pitchV);
   sendi2c(0x31, 0, 0x11, voice + 16 + POLYPHONY, velocity);
