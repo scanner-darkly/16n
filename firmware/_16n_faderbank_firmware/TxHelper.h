@@ -17,6 +17,7 @@ struct TxResponse
   byte Command;
   byte Output;
   int Value;
+  byte Raw[3];
 };
 
 struct TxIO
