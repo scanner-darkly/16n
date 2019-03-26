@@ -17,7 +17,7 @@
 // #define DEBUG 1
 
 // enables legacy compatibility with non-multiplexer boards
-// #define V125
+#define V125
 
 // turn on power LED
 // #define LED 1
@@ -28,13 +28,13 @@
 //
 // NOTE: in MASTER MODE the 16n will not respond to the Teletype
 //
-//#define MASTER 1
+#define MASTER 1
 
 // uncomment to convert MIDI notes to I2C
 // MASTER MODE must be enabled
 // for Just Friends set POLYPHONY to 6
 // #define JFMIDI
-// #define ER301MIDI
+#define ER301MIDI
 #define POLYPHONY 8
 
 // minimum and maximum values for faders (to deal with tolerances)

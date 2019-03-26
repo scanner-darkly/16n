@@ -164,8 +164,13 @@ void setup()
   MIDI.setHandleNoteOn(midiHandleNoteOn);
   MIDI.setHandleNoteOff(midiHandleNoteOff);
   usbMIDI.setHandleControlChange(midiHandleControlChange);
+  usbMIDI.setHandleProgramChange(midiHandleProgramChange);
   usbMIDI.setHandleNoteOn(midiHandleNoteOn);
   usbMIDI.setHandleNoteOff(midiHandleNoteOff);
+  usbMIDI.setHandleClock(midiHandleClock);
+  usbMIDI.setHandleStart(midiHandleStart);
+  usbMIDI.setHandleContinue(midiHandleContinue);
+  usbMIDI.setHandleStop(midiHandleStop);
   midiWriteTimer.begin(writeMidi, midiInterval);
   midiReadTimer.begin(readMidi, midiInterval);
 
@@ -233,8 +238,34 @@ void loop()
 
 void midiHandleControlChange(byte channel, byte control, byte value)
 {
+    if (channel == 2) MIDI.sendControlChange(control, value, channel);
     if (channel >= channelCount || control >= maxCCCount) return;
     lastCCValue[channel][control] = value;
+}
+
+void midiHandleProgramChange(byte channel, byte number)
+{
+    if (channel == 2) MIDI.sendProgramChange(number, channel);
+}
+
+void midiHandleClock(void)
+{
+    MIDI.sendRealTime(MIDI_NAMESPACE::Clock);
+}
+
+void midiHandleStart(void)
+{
+    // MIDI.sendRealTime(MIDI_NAMESPACE::Start);
+}
+
+void midiHandleContinue(void)
+{
+    // MIDI.sendRealTime(MIDI_NAMESPACE::Continue);
+}
+
+void midiHandleStop(void)
+{
+    // MIDI.sendRealTime(MIDI_NAMESPACE::Stop);
 }
 
 void midiHandleNoteOn(uint8_t channel, uint8_t note, uint8_t velocity)
@@ -242,7 +273,8 @@ void midiHandleNoteOn(uint8_t channel, uint8_t note, uint8_t velocity)
 #ifdef DEBUG
   Serial.printf("Received MIDI note on channel: %d note: %d vel: %d\n", channel, note, velocity);
 #endif
-  addNote(channel, note, velocity);
+  if (channel == 1) addNote(channel, note, velocity);
+  else if (channel == 2) MIDI.sendNoteOn(note, velocity, channel);
 }
 
 void midiHandleNoteOff(uint8_t channel, uint8_t note, uint8_t velocity)
@@ -250,7 +282,8 @@ void midiHandleNoteOff(uint8_t channel, uint8_t note, uint8_t velocity)
 #ifdef DEBUG
   Serial.printf("Received MIDI note off channel: %d note: %d vel: %d\n", channel, note, velocity);
 #endif
-  removeNote(channel, note, velocity);
+  if (channel == 1) removeNote(channel, note, velocity);
+  else if (channel == 2) MIDI.sendNoteOn(note, velocity, channel);
 }
 
 void addNote(uint8_t channel, uint8_t note, uint8_t velocity)
